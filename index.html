@@ -494,6 +494,9 @@ async function submitVC(legacyId,scanId){
     const url=ENDPOINT+'?action=vcCheckin&apiKey='+encodeURIComponent(API_KEY)+'&legacyId='+encodeURIComponent(legacyId);
     const res=await fetchT(url);
     const data=await res.json().catch(()=>({}));
+    // Debug — show response so we can see what's happening
+    Toast.show('VC debug: ok='+data.ok+' fail='+data.fail+' status='+data.status+' err='+(data.error||'')+(data.debug?' | '+data.debug.substring(0,60):''),'warn',8000);
+    console.log('VC response:', JSON.stringify(data));
     if(data.ok){
       markVCSent(scanId);
     }else if(data.fail||data.error){
@@ -502,6 +505,7 @@ async function submitVC(legacyId,scanId){
       markVCSent(scanId);
     }
   }catch(err){
+    Toast.show('VC exception: '+err.message,'err',6000);
     console.warn('VC submit failed:',err.message);
   }
 }
