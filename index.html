@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>Guard Booth Kiosk</title>
+<meta id="meta-theme" name="theme-color" content="#f8f9fb">
+<style>
+/* ── Reset ── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#111}
+body{min-height:100svh;overscroll-behavior-y:contain}
+
+/* ── Page ── */
+.page{
+  max-width:1000px;margin:0 auto;
+  padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px));
+  padding-top:calc(20px + env(safe-area-inset-top,0px));
+}
+
+/* ── Top bar ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:20px;flex-wrap:wrap;
+}
+.topbar-title{font-size:22px;font-weight:700;color:#111;letter-spacing:-.2px}
+.topbar-right{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* ── Status chips ── */
+.chip{
+  font-size:13px;font-weight:600;padding:6px 13px;border-radius:20px;
+  white-space:nowrap;cursor:default;border:1.5px solid;
+  transition:all .15s;
+}
+.chip.btn{cursor:pointer}
+.chip.btn:hover{opacity:.8}
+.chip-green{background:#e8f5e9;border-color:#a5d6a7;color:#1b5e20}
+.chip-amber{background:#fff8e1;border-color:#ffe082;color:#795548}
+.chip-red  {background:#fce4ec;border-color:#f48fb1;color:#880e4f}
+.chip-blue {background:#e3f2fd;border-color:#90caf9;color:#0d47a1}
+.chip-grey {background:#f5f5f5;border-color:#e0e0e0;color:#757575}
+
+/* ── Alert ── */
+.alert{
+  border-radius:10px;padding:11px 16px;margin-bottom:16px;
+  font-size:13px;font-weight:600;border:1.5px solid;display:none;
+}
+.alert.show-red {display:block;background:#fce4ec;border-color:#f48fb1;color:#880e4f}
+.alert.show-amber{display:block;background:#fff8e1;border-color:#ffe082;color:#795548}
+
+/* ── IN / OUT buttons ── */
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.act-btn{
+  border-radius:16px;font-size:64px;font-weight:800;min-height:130px;
+  cursor:pointer;letter-spacing:-1px;border:2.5px solid;
+  transition:all .1s ease;
+  display:flex;align-items:center;justify-content:center;gap:0;
+  background:#fff;color:#999;border-color:#e0e0e0;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+  position:relative;
+}
+.act-btn .act-label{
+  position:absolute;bottom:10px;right:14px;
+  font-size:11px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;opacity:.45;
+}
+.act-btn.active-in{
+  background:linear-gradient(160deg,#e8f5e9,#f1f8e9);
+  color:#2e7d32;border-color:#66bb6a;
+  box-shadow:0 0 0 4px rgba(102,187,106,.18),0 2px 8px rgba(0,0,0,.06);
+}
+.act-btn.active-out{
+  background:linear-gradient(160deg,#fce4ec,#fdf2f5);
+  color:#c62828;border-color:#ef9a9a;
+  box-shadow:0 0 0 4px rgba(239,154,154,.22),0 2px 8px rgba(0,0,0,.06);
+}
+.act-btn:active{transform:scale(.98)}
+
+/* ── Two-col grid ── */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+
+/* ── Cards ── */
+.card{background:#fff;border:1.5px solid #e8e8e8;border-radius:14px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.card.search-card{position:relative}
+.card-label{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#999;margin-bottom:12px}
+
+/* ── Inputs ── */
+input[type=password],input[type=search]{
+  width:100%;padding:16px 18px;font-size:24px;font-weight:500;
+  font-family:inherit;
+  background:#f8f9fb;color:#111;
+  border:1.5px solid #ddd;border-radius:10px;
+  transition:border-color .15s,box-shadow .15s;
+  -webkit-appearance:none;
+}
+input:focus{outline:none;border-color:#1976d2;box-shadow:0 0 0 3px rgba(25,118,210,.12);background:#fff}
+input::placeholder{color:#bbb}
+input[type=search]::-webkit-search-cancel-button{display:none}
+
+/* ── Results list ── */
+.results{display:none;position:absolute;left:0;right:0;top:100%;z-index:50;
+  margin-top:4px;max-height:400px;overflow-y:auto;overscroll-behavior:contain;
+  background:#fff;border:1.5px solid #e8e8e8;border-radius:12px;
+  box-shadow:0 12px 32px rgba(0,0,0,.14);
+  scrollbar-width:thin;scrollbar-color:#ddd transparent;}
+.results.open{display:block;padding:6px}
+.results::-webkit-scrollbar{width:4px}
+.results::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+.res-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;padding:8px 2px 4px}
+.res-row{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 14px;margin-bottom:4px;
+  background:#f8f9fb;border:1px solid #ececec;border-radius:8px;
+  transition:border-color .12s;
+}
+.res-row:hover{border-color:#c5d8f5;background:#f0f5ff}
+.res-name{font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+.res-grade{font-size:12px;color:#bbb;margin-top:2px}
+.res-btn{
+  flex-shrink:0;padding:9px 18px;font-size:15px;font-weight:700;font-family:inherit;
+  background:#1976d2;color:#fff;border:none;border-radius:6px;cursor:pointer;
+  transition:background .12s,transform .1s;
+}
+.res-btn:hover{background:#1565c0}
+.res-btn:active{transform:scale(.96)}
+
+/* ── Scan log ── */
+.log-section{margin-top:20px}
+.log-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#999;margin-bottom:10px}
+.log-wrap{display:flex;flex-direction:column;gap:5px;max-height:280px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:#ddd transparent}
+.log-wrap::-webkit-scrollbar{width:3px}
+.log-wrap::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+.log-empty{font-size:13px;color:#bbb;text-align:center;padding:16px}
+.log-row{
+  display:grid;grid-template-columns:44px 1fr auto auto;align-items:center;gap:8px;
+  padding:8px 12px;background:#fafbfc;border:1px solid #efefef;border-radius:8px;font-size:14px;
+  transition: background .1s;
+}
+.log-row:hover{background:#f0f5ff}
+.log-row.in {border-left:3px solid #66bb6a}
+.log-row.out{border-left:3px solid #ef9a9a}
+.log-row.unknown{border-left:3px solid #ffe082}
+.log-tag{font-size:12px;font-weight:700;padding:3px 8px;border-radius:4px;text-align:center;letter-spacing:.03em}
+.log-tag.in {background:#e8f5e9;color:#2e7d32}
+.log-tag.out{background:#fce4ec;color:#c62828}
+.log-tag.unknown{background:#fff8e1;color:#795548}
+.log-name{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#333}
+.log-time{font-size:12px;color:#bbb;white-space:nowrap;font-variant-numeric:tabular-nums}
+.log-vc{font-size:12px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
+.log-vc.ok  {color:#43a047}.log-vc.pend{color:#f9a825}.log-vc.fail{color:#e53935}.log-vc.na{color:#e0e0e0}
+
+/* ── VC panel ── */
+.vc-panel{
+  margin-top:14px;background:#fff8e1;border:1.5px solid #ffe082;
+  border-radius:14px;padding:14px;display:none;
+}
+.vc-panel.show{display:block}
+.vc-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.vc-head-title{font-size:13px;font-weight:700;color:#795548}
+.vc-btns{display:flex;gap:8px}
+.vc-btn-send{font-size:12px;font-weight:700;padding:6px 14px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;background:#f9a825;color:#fff;transition:background .1s}
+.vc-btn-send:hover{background:#f57f17}
+.vc-btn-dismiss{font-size:12px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;font-family:inherit;background:transparent;color:#999;border:1.5px solid #e0e0e0}
+.vc-btn-dismiss:hover{color:#555}
+.vc-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:rgba(255,255,255,.7);border-radius:8px;margin-bottom:5px}
+.vc-item-name{font-size:13px;font-weight:600;color:#555}
+.vc-item-meta{font-size:11px;color:#f9a825}
+.vc-send-one{font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;border:1.5px solid #ffe082;background:#fff8e1;color:#795548;cursor:pointer;font-family:inherit}
+.vc-send-one:hover{background:#fff3cd}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;left:50%;bottom:24px;
+  transform:translateX(-50%) translateY(12px);opacity:0;
+  pointer-events:none;z-index:100;
+  background:#fff;border:1.5px solid #e0e0e0;
+  box-shadow:0 8px 32px rgba(0,0,0,.12);border-radius:12px;
+  padding:13px 22px;font-weight:700;font-size:17px;
+  font-family:inherit;text-align:center;max-width:86vw;white-space:pre-line;
+  transition:all .17s cubic-bezier(.22,1,.36,1);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok  {color:#2e7d32;border-color:#a5d6a7}
+.toast.err {color:#c62828;border-color:#f48fb1}
+.toast.warn{color:#795548;border-color:#ffe082}
+
+/* ── Boot overlay ── */
+.boot{position:fixed;inset:0;background:rgba(240,242,245,.9);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:200}
+.boot-box{background:#fff;border:1.5px solid #e0e0e0;border-radius:16px;padding:28px 36px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.08);min-width:220px}
+.boot-spinner{width:28px;height:28px;border-radius:50%;margin:0 auto 14px;border:2.5px solid #e0e0e0;border-top-color:#1976d2;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.boot-text{font-weight:600;font-size:14px;color:#999}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div id="alertBanner" class="alert"></div>
+
+  <div class="topbar">
+    <div class="topbar-title">🏫 Guard Booth</div>
+    <div class="topbar-right">
+      <span id="netChip"    class="chip chip-grey">● Online</span>
+      <span id="sheetChip"  class="chip chip-green btn" title="Click to sync">Sheet ✓</span>
+      <span id="vcChip"     class="chip chip-green btn" title="Click to review">Veracross ✓</span>
+      <span id="rosterChip" class="chip chip-blue  btn" title="Click to refresh">Roster ⏳</span>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button id="actIn"  class="act-btn active-in"  type="button">IN  <span class="act-label">Arrival</span></button>
+    <button id="actOut" class="act-btn"             type="button">OUT <span class="act-label">Departure</span></button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-label">Cougar Card</div>
+      <input id="pin" type="password" maxlength="32" inputmode="numeric"
+             autocomplete="one-time-code" placeholder="Tap or swipe…"/>
+    </div>
+    <div class="card search-card">
+      <div class="card-label">Search by Name</div>
+      <div style="position:relative">
+        <input id="q" type="search" inputmode="search" enterkeyhint="search"
+               autocapitalize="words" autocorrect="off" spellcheck="false"
+               placeholder="Faculty or student…"/>
+        <div id="results" class="results"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <div class="log-title">Recent Scans</div>
+    <div id="logWrap" class="log-wrap"></div>
+  </div>
+
+  <div id="vcPanel" class="vc-panel">
+    <div class="vc-head">
+      <div class="vc-head-title">⚠️ Veracross pending — students not yet checked in</div>
+      <div class="vc-btns">
+        <button id="vcSendAll" class="vc-btn-send">Send All</button>
+        <button id="vcDismiss" class="vc-btn-dismiss">Dismiss</button>
+      </div>
+    </div>
+    <div id="vcList"></div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="boot" class="boot">
+  <div class="boot-box">
+    <div class="boot-spinner"></div>
+    <div class="boot-text" id="bootText">Loading roster…</div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   GUARD BOOTH KIOSK
+
+   ROSTER FIX: Apps Script serves this page inside a sandboxed
+   iframe on googleusercontent.com. window.location is NOT the
+   script URL. ENDPOINT must be hardcoded — do not use
+   window.location.href to build API URLs.
+================================================================ */
+(()=>{
+'use strict';
+
+/* ★ Your Apps Script deployment URL ★ */
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxIYTasUm6kQwnWqkGVuDhMZIT1dkUV3yPjF3VBycUDN8GFiSkesCPgqwhZfi_CZSozsQ/exec';
+
+const API_KEY  = 'a9c4e2b9-74fd-41df-b6f8-6f5f8f3b2c41';
+
+const CFG = {
+  wedgeMs:300, cooldownMs:300, dedupeMs:5000, fetchTimeoutMs:14000,
+  sheetRetryDelays:[1000,2000,4000,8000,15000,30000,30000,30000],
+  maxSheetRetries:8, logSize:15,
+};
+const LS = {SHEET_Q:'kg_sheet_q',VC_Q:'kg_vc_q',LOG:'kg_log'};
+
+/* ── DOM ── */
+const $  = id => document.getElementById(id);
+const pinEl=$('pin'), qEl=$('q'), toastEl=$('toast');
+const btnIn=$('actIn'), btnOut=$('actOut');
+const netChip=$('netChip'), sheetChip=$('sheetChip'), vcChip=$('vcChip'), rosterChip=$('rosterChip');
+const bootEl=$('boot'), bootText=$('bootText');
+const logWrap=$('logWrap'), vcPanel=$('vcPanel'), vcList=$('vcList'), alertBanner=$('alertBanner');
+
+/* ── State ── */
+let studentByLegacy=new Map(), facultyByPin=new Map(), facultyList=[], studentList=[];
+let rosterReady=false, lastSubmitAt=0, wedgeTimer=null;
+let sheetFlushTimer=null, isFlushingSheet=false, rosterRetryTimer=null;
+const dedupeMap=new Map();
+
+/* ── Utils ── */
+const uid=()=>{try{return crypto.randomUUID();}catch(_){}return Date.now().toString(36)+Math.random().toString(36).slice(2,10)};
+const digitsOnly=s=>String(s||'').replace(/\D+/g,'');
+const normPin=s=>digitsOnly(s).slice(-10).padStart(10,'0');
+const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtTime=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function fetchT(url,opts={}){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),CFG.fetchTimeoutMs);
+  try{return await fetch(url,{...opts,signal:c.signal});}finally{clearTimeout(t);}
+}
+
+/* ── Network ── */
+function updateNet(){
+  const on=navigator.onLine;
+  netChip.textContent=on?'● Online':'● Offline';
+  netChip.className='chip '+(on?'chip-green':'chip-red');
+  if(on) scheduleFlush(400);
+}
+window.addEventListener('online',()=>{updateNet();scheduleFlush(300);},{passive:true});
+window.addEventListener('offline',updateNet,{passive:true});
+
+/* ── Focus ── */
+function focusPin(){try{pinEl.focus();pinEl.select?.();}catch(_){}}
+function focusIfIdle(){if(document.activeElement!==qEl)focusPin();}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)focusIfIdle();});
+window.addEventListener('pageshow',e=>{if(e.persisted)focusIfIdle();});
+document.addEventListener('click',e=>{
+  if(e.target===qEl||e.target.closest('#results')||e.target.closest('#vcPanel'))return;
+  const b=$('results');b.innerHTML='';b.classList.remove('open');
+  setTimeout(focusIfIdle,0);
+},true);
+
+/* ── Action ── */
+const getAction=()=>btnIn.classList.contains('active-in')?'in':'out';
+function setAction(a){
+  btnIn.className ='act-btn'+(a==='in'?' active-in':'');
+  btnOut.className='act-btn'+(a==='out'?' active-out':'');
+  setTimeout(focusIfIdle,0);
+}
+btnIn.addEventListener('click',()=>setAction('in'));
+btnOut.addEventListener('click',()=>setAction('out'));
+window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')setAction('in');if(e.key==='ArrowRight')setAction('out');});
+
+/* ── Toast ── */
+const Toast=(()=>{let t=null;return{show(msg,type='ok',dur=2200){
+  toastEl.textContent=msg;toastEl.className=`toast show ${type}`;
+  clearTimeout(t);t=setTimeout(()=>toastEl.classList.remove('show'),Math.max(600,dur));
+}};})();
+
+/* ── Chimes ── */
+const Chime=(()=>{
+  let ctx=null,comp=null,ready=false;
+  function init(){
+    if(ready)return;
+    const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();
+    comp=ctx.createDynamicsCompressor();comp.threshold.setValueAtTime(-12,ctx.currentTime);
+    comp.ratio.setValueAtTime(16,ctx.currentTime);comp.connect(ctx.destination);
+    const r=()=>ctx.resume?.().catch(()=>{});
+    window.addEventListener('pointerdown',r,{once:true,passive:true});
+    window.addEventListener('keydown',r,{once:true});ready=true;
+  }
+  function tone({f=880,dur=0.18,t=ctx.currentTime,type='sine',g=0.7}){
+    const o=ctx.createOscillator(),gn=ctx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);
+    gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(g,t+0.012);
+    gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(gn).connect(comp);o.start(t);o.stop(t+dur+0.02);
+  }
+  return{
+    ok(){init();const t0=ctx.currentTime+0.01;tone({f:659,dur:.14,t:t0});tone({f:830,dur:.14,t:t0+.12});tone({f:1318,dur:.22,t:t0+.24,g:.9});},
+    fail(){init();const t0=ctx.currentTime+0.01;tone({f:440,dur:.16,t:t0,type:'square',g:.9});tone({f:294,dur:.20,t:t0+.18,type:'square',g:.8});},
+    warn(){init();const t0=ctx.currentTime+0.01;tone({f:550,dur:.18,t:t0,g:.6});tone({f:440,dur:.20,t:t0+.16,g:.5});}
+  };
+})();
+
+/* ── Chips ── */
+function updateChips(){
+  const sq=getSheetQ().length, vq=getVCQ().filter(i=>!i.vcSent&&!i.vcFailed).length;
+  sheetChip.textContent=sq===0?'Sheet ✓':`Sheet 🔄 ${sq}`;
+  sheetChip.className='chip btn '+(sq===0?'chip-green':'chip-amber');
+  vcChip.textContent=vq===0?'Veracross ✓':`Veracross ⚠️ ${vq}`;
+  vcChip.className='chip btn '+(vq===0?'chip-green':'chip-red');
+  if(sq>5||vq>2){
+    alertBanner.textContent=(sq>0?`${sq} scan(s) waiting to sync.  `:'')+
+      (vq>0?`${vq} student(s) not yet sent to Veracross — tap the badge to review.`:'');
+    alertBanner.className='alert '+(sq>5?'show-red':'show-amber');
+  }else{alertBanner.className='alert';}
+}
+
+/* ── Log ── */
+function getLog(){try{return JSON.parse(localStorage.getItem(LS.LOG)||'[]')||[];}catch(_){return[];}}
+function addLog(e){
+  const l=getLog();l.unshift(e);if(l.length>CFG.logSize*3)l.splice(CFG.logSize*3);
+  try{localStorage.setItem(LS.LOG,JSON.stringify(l));}catch(_){}renderLog();
+}
+function patchLog(scanId,p){
+  const l=getLog(),i=l.findIndex(e=>e.scanId===scanId);
+  if(i!==-1){Object.assign(l[i],p);try{localStorage.setItem(LS.LOG,JSON.stringify(l));}catch(_){}renderLog();}
+}
+function renderLog(){
+  const l=getLog().slice(0,CFG.logSize);
+  if(!l.length){logWrap.innerHTML='<div class="log-empty">No scans yet</div>';return;}
+  logWrap.innerHTML=l.map(e=>{
+    const tag=`<span class="log-tag ${e.action}">${e.action.toUpperCase()}</span>`;
+    const nm=`<div class="log-name">${esc(e.name||e.pin||'?')}</div>`;
+    const tm=`<div class="log-time">${esc(e.time||'')}</div>`;
+    let vc='<span class="log-vc na">—</span>';
+    if(e.action==='in'&&e.kind==='student')vc=e.vcSent?'<span class="log-vc ok">VC ✓</span>':e.vcFailed?'<span class="log-vc fail">VC ✗</span>':'<span class="log-vc pend">VC ⏳</span>';
+    else if(e.failed)vc='<span class="log-vc fail">✗ failed</span>';
+    else if(e.kind!=='unknown')vc='<span class="log-vc ok">✓</span>';
+    return`<div class="log-row ${e.action||'unknown'}">${tag}${nm}${tm}${vc}</div>`;
+  }).join('');
+}
+
+/* ── Dedupe ── */
+function dedupe(k){
+  const now=Date.now(),l=dedupeMap.get(k)||0;
+  if(now-l<CFG.dedupeMs)return false;
+  dedupeMap.set(k,now);
+  // Prune stale entries every 100 calls to prevent memory leak on long sessions
+  if(dedupeMap.size>200){for(const[key,ts] of dedupeMap)if(now-ts>CFG.dedupeMs)dedupeMap.delete(key);}
+  return true;
+}
+const dKey=(pin,action)=>`${action}:${normPin(pin)}`;
+
+/* ════════════════════════════════════════════════════════════════
+   SHEET QUEUE — scan is written here first, retried until success
+════════════════════════════════════════════════════════════════ */
+function getSheetQ(){try{return JSON.parse(localStorage.getItem(LS.SHEET_Q)||'[]')||[];}catch(_){return[];}}
+function saveSheetQ(q){try{localStorage.setItem(LS.SHEET_Q,JSON.stringify(q));}catch(_){}}
+function removeFromSheetQ(scanId){const q=getSheetQ().filter(i=>i.scanId!==scanId);saveSheetQ(q);updateChips();}
+
+function enqueueSheet(payload){
+  const q=getSheetQ();
+  if(payload.scanId&&q.some(i=>i.scanId===payload.scanId))return;
+  q.push({...payload,_retries:0,_queuedAt:Date.now()});saveSheetQ(q);updateChips();scheduleFlush();
+}
+function scheduleFlush(d=400){clearTimeout(sheetFlushTimer);if(!navigator.onLine)return;sheetFlushTimer=setTimeout(flushSheet,d);}
+
+async function flushSheet(){
+  if(isFlushingSheet||!navigator.onLine)return;isFlushingSheet=true;
+  try{
+    let q=getSheetQ();
+    while(q.length>0){
+      const item=q[0],retries=item._retries||0;
+      if(retries>=CFG.maxSheetRetries){
+        q=getSheetQ().filter(i=>i.scanId!==item.scanId);saveSheetQ(q);
+        alertBanner.textContent=`❌ Could not save scan for "${item.firstName||item.pin||'?'}" after ${retries} attempts. Record manually.`;
+        alertBanner.className='alert show-red';continue;
+      }
+      if(retries>0){await sleep(CFG.sheetRetryDelays[Math.min(retries-1,CFG.sheetRetryDelays.length-1)]);q=getSheetQ();if(!q.length)break;}
+      try{
+        const{_retries:_r,_queuedAt:_q,...clean}=item;
+        const res=await fetchT(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({...clean,apiKey:API_KEY}).toString()});
+        if(res.ok){
+          const data=await res.json().catch(()=>({}));
+          const nr=data.error==='Cougar Card not found'||data.error==='Unauthorized'||data.status==='duplicate';
+          if(!data.error||nr){q=getSheetQ().filter(i=>i.scanId!==item.scanId);saveSheetQ(q);}
+          else{q=getSheetQ();const i=q.findIndex(i=>i.scanId===item.scanId);if(i!==-1){q[i]._retries=retries+1;saveSheetQ(q);}}
+        }else{q=getSheetQ();const i=q.findIndex(i=>i.scanId===item.scanId);if(i!==-1){q[i]._retries=retries+1;saveSheetQ(q);}}
+      }catch(_){q=getSheetQ();const i=q.findIndex(i=>i.scanId===item.scanId);if(i!==-1){q[i]._retries=retries+1;saveSheetQ(q);}break;}
+      updateChips();
+    }
+  }finally{isFlushingSheet=false;updateChips();if(getSheetQ().length>0&&navigator.onLine)scheduleFlush(8000);}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   VERACROSS QUEUE
+════════════════════════════════════════════════════════════════ */
+function getVCQ(){try{return JSON.parse(localStorage.getItem(LS.VC_Q)||'[]')||[];}catch(_){return[];}}
+function saveVCQ(q){try{localStorage.setItem(LS.VC_Q,JSON.stringify(q));}catch(_){}}
+
+function enqueueVC(item){const q=getVCQ();if(q.some(i=>i.scanId===item.scanId))return;q.push({...item,vcSent:false,queuedAt:Date.now()});saveVCQ(q);updateChips();renderVCPanel();}
+function markVCSent(scanId){const q=getVCQ(),i=q.findIndex(x=>x.scanId===scanId);if(i!==-1){q[i].vcSent=true;saveVCQ(q);}patchLog(scanId,{vcSent:true});Chime.ok();try{navigator.vibrate?.(30);}catch(_){}updateChips();renderVCPanel();}
+function markVCFailed(scanId,name){const q=getVCQ().filter(x=>x.scanId!==scanId);saveVCQ(q);patchLog(scanId,{vcFailed:true});Toast.show(`⚠️ Veracross rejected: ${name||'student'}`,'err',4000);Chime.fail();updateChips();renderVCPanel();}
+
+function renderVCPanel(){
+  const p=getVCQ().filter(i=>!i.vcSent&&!i.vcFailed);
+  if(!p.length){vcPanel.classList.remove('show');return;}
+  vcPanel.classList.add('show');
+  vcList.innerHTML=p.map(item=>`
+    <div class="vc-item">
+      <div><div class="vc-item-name">${esc(item.name)}</div><div class="vc-item-meta">IN at ${esc(item.time)} · Grade ${esc(item.grade||'?')}</div></div>
+      <button class="vc-send-one" data-scanid="${esc(item.scanId)}" data-legacy="${esc(item.legacyId)}">Send ↗</button>
+    </div>`).join('');
+}
+
+function openVC(legacyId,scanId){
+  submitVC(legacyId,scanId);
+  return true;
+}
+
+function submitVC(legacyId,scanId){
+  const name=(()=>{const q=getVCQ();const i=q.find(x=>x.scanId===scanId);return i?i.name:'';})();
+
+  // Use a hidden iframe + form so the POST comes from the laptop's IP (no CORS issue)
+  const iframeId='vc_iframe_'+scanId;
+  const formId='vc_form_'+scanId;
+
+  // Create hidden iframe
+  const iframe=document.createElement('iframe');
+  iframe.name=iframeId;
+  iframe.id=iframeId;
+  iframe.style.cssText='display:none;width:0;height:0;border:0;position:absolute;left:-9999px';
+  document.body.appendChild(iframe);
+
+  // Create hidden form targeting the iframe
+  const form=document.createElement('form');
+  form.id=formId;
+  form.method='POST';
+  form.action='https://checkin.veracross.com/frisch/kiosk/entrance';
+  form.target=iframeId;
+  form.style.cssText='display:none;position:absolute;left:-9999px';
+
+  [['kiosk_type','4'],['check_in_method','3'],['kiosk','34'],['legacy_id',legacyId],['commit','Scan Here']].forEach(function(pair){
+    var inp=document.createElement('input');
+    inp.type='hidden';inp.name=pair[0];inp.value=pair[1];
+    form.appendChild(inp);
+  });
+  document.body.appendChild(form);
+  form.submit();
+
+  // Listen for iframe load to detect success/fail
+  let settled=false;
+  function cleanup(){
+    try{document.body.removeChild(iframe);}catch(_){}
+    try{document.body.removeChild(form);}catch(_){}
+  }
+
+  iframe.addEventListener('load',()=>{
+    if(settled)return;
+    settled=true;
+    try{
+      const html=iframe.contentDocument?.body?.innerHTML?.toLowerCase()||'';
+      const ok=html.includes('successfully')||html.includes('late arrival')||html==='';
+      const fail=html.includes('invalid')||html.includes('not found')||html.includes('forbidden');
+      if(fail){markVCFailed(scanId,name);}
+      else{markVCSent(scanId);}
+    }catch(_){
+      // Cross-origin read blocked = form was accepted and redirected — treat as success
+      markVCSent(scanId);
+    }
+    cleanup();
+  });
+
+  // Timeout fallback — if no load event after 8s, assume success
+  setTimeout(()=>{
+    if(settled)return;
+    settled=true;
+    markVCSent(scanId);
+    cleanup();
+  },8000);
+}
+
+async function sendAllVC(){
+  const q=getVCQ().filter(i=>!i.vcSent&&!i.vcFailed);if(!q.length){Toast.show('Nothing pending','ok');return;}
+  Toast.show(`Opening ${q.length} window(s)…`,'warn',3000);
+  for(let i=0;i<q.length;i++){if(i>0)await sleep(1400);openVC(q[i].legacyId,q[i].scanId);}
+}
+
+vcList.addEventListener('click',e=>{const b=e.target.closest('.vc-send-one');if(!b)return;openVC(b.dataset.legacy,b.dataset.scanid);setTimeout(focusIfIdle,200);});
+$('vcSendAll').addEventListener('click',()=>{sendAllVC();setTimeout(focusIfIdle,200);});
+$('vcDismiss').addEventListener('click',()=>{vcPanel.classList.remove('show');setTimeout(focusIfIdle,0);});
+vcChip.addEventListener('click',()=>{const n=getVCQ().filter(i=>!i.vcSent&&!i.vcFailed).length;if(n){renderVCPanel();vcPanel.classList.toggle('show');}else Toast.show('All sent ✓','ok',1600);setTimeout(focusIfIdle,0);});
+sheetChip.addEventListener('click',()=>{const n=getSheetQ().length;if(n===0)Toast.show('Sheet synced ✓','ok',1600);else{Toast.show(`Syncing ${n} item(s)…`,'warn',2000);scheduleFlush(0);}setTimeout(focusIfIdle,0);});
+
+/* ════════════════════════════════════════════════════════════════
+   CORE SCAN
+════════════════════════════════════════════════════════════════ */
+async function processScan({pin,personId,firstName,lastName,grade,kind,legacyId,action,src}){
+  const scanId=uid(),now=new Date(),ts=fmtTime(now);
+  const name=`${firstName||''} ${lastName||''}`.trim()||pin||'?';
+  const isStudentIn=kind==='student'&&action==='in'&&legacyId;
+
+  // Student IN: optimistic feedback + open VC popup immediately
+  if(isStudentIn){
+    Toast.show(`${name} — IN`,'ok');
+    // Chime plays after VC result so we don't get ok+fail double-sound
+    addLog({scanId,action,kind,name,pin:legacyId||pin||'',time:ts,vcSent:false});
+    enqueueSheet({action,src:src||(pin?'tap':'search'),pin:legacyId||pin||'',personId:personId||'',firstName:firstName||'',lastName:lastName||'',grade:grade||'',clientTs:String(now.getTime()),scanId});
+    enqueueVC({scanId,legacyId,name,grade:grade||'',time:ts,action});
+    submitVC(legacyId,scanId);
+    lastSubmitAt=Date.now();focusIfIdle();
+    return;
+  }
+
+  // Teacher IN/OUT or student OUT: instant feedback, fire-and-forget to sheet
+  const verb=action==='in'?'IN':'OUT';
+  Toast.show(`${name} — ${verb}`,'ok');
+  Chime.ok();try{navigator.vibrate?.(30);}catch(_){}
+  addLog({scanId,action,kind,name,pin:legacyId||pin||personId||'',time:ts,vcSent:true});
+  lastSubmitAt=Date.now();focusIfIdle();
+  const payload={action,src:src||(pin?'tap':'search'),pin:legacyId||pin||'',personId:personId||'',firstName:firstName||'',lastName:lastName||'',grade:grade||'',clientTs:String(now.getTime()),scanId};
+  enqueueSheet(payload);
+  // Best-effort immediate send — queue retries automatically on failure
+  (async()=>{
+    try{
+      const res=await fetchT(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({...payload,apiKey:API_KEY}).toString()});
+      if(res.ok){
+        const data=await res.json().catch(()=>({}));
+        if(data.error){Toast.show(`${name} — ❌ ${data.error}`,'err',4000);Chime.fail();patchLog(scanId,{failed:true});}
+        else{removeFromSheetQ(scanId);}
+      }
+    }catch(_){}
+  })();
+}
+
+function processUnknown(pin){
+  Toast.show('Cougar Card not found','err');Chime.fail();try{navigator.vibrate?.(40);}catch(_){}
+  const scanId=uid(),now=new Date(),ts=fmtTime(now);
+  addLog({scanId,action:getAction(),kind:'unknown',name:`Unknown (${pin})`,pin,time:ts,vcSent:true});
+  enqueueSheet({action:getAction(),src:'tap_unknown',pin:normPin(pin),personId:'',firstName:'',lastName:'',grade:'',clientTs:String(now.getTime()),scanId});
+  lastSubmitAt=Date.now();
+}
+
+/* ── Card swipe ── */
+pinEl.addEventListener('input',()=>{
+  clearTimeout(wedgeTimer);
+  wedgeTimer=setTimeout(()=>{
+    const raw=digitsOnly(pinEl.value);pinEl.value='';
+    if(raw.length<10)return;
+    const ten=normPin(raw),action=getAction();
+    if(Date.now()-lastSubmitAt<CFG.cooldownMs)return;
+    if(!dedupe(dKey(ten,action))){Toast.show('Duplicate scan (5s)','warn',1200);return;}
+    if(rosterReady){
+      if(studentByLegacy.has(ten)){
+        const s=studentByLegacy.get(ten);
+        processScan({pin:ten,personId:'',legacyId:ten,firstName:s.firstName||'',lastName:s.lastName||'',grade:s.grade||'',kind:'student',action,src:action==='in'?'tap_student_in':'tap_student_out'});
+      }else if(facultyByPin.has(ten)){
+        const f=facultyByPin.get(ten);
+        processScan({pin:ten,personId:f.personId||'',legacyId:'',firstName:f.firstName||'',lastName:f.lastName||'',grade:'',kind:'faculty',action,src:'tap_faculty'});
+      }else{processUnknown(ten);}
+    }else{
+      // Roster offline — fire VC anyway using the raw card number.
+      // Veracross only accepts student IDs so faculty cards will come back as failed and close.
+      const scanId=uid(),now=new Date(),ts=fmtTime(now);
+      // Only send to VC if action is IN (OUT has no meaning in Veracross kiosk)
+      const sendToVC=action==='in';
+      addLog({scanId,action,kind:'unknown',name:`Card ${ten}`,pin:ten,time:ts,vcSent:!sendToVC});
+      enqueueSheet({action,src:'tap_noroster',pin:ten,personId:'',firstName:'',lastName:'',grade:'',clientTs:String(now.getTime()),scanId});
+      if(sendToVC){
+        enqueueVC({scanId,legacyId:ten,name:`Card ${ten}`,grade:'',time:ts,action});
+        submitVC(ten,scanId);
+        Toast.show(`Card ${ten} — sent to Veracross`,'warn',2500);
+      }else{
+        Toast.show(`Card ${ten} queued — roster offline`,'warn',2500);
+      }
+      lastSubmitAt=Date.now();
+    }
+  },CFG.wedgeMs);
+},{passive:true});
+
+/* ── Search ── */
+const normStr=s=>String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
+function nameScore(q,first,last){
+  const nq=normStr(q),nf=normStr(first),nl=normStr(last),nfl=nf+' '+nl,nlf=nl+', '+nf;
+  if(nfl===nq||nlf===nq)return 1000;if(nf===nq||nl===nq)return 900;
+  let s=0;if(nl.startsWith(nq))s+=120;if(nf.startsWith(nq))s+=110;if(nfl.startsWith(nq))s+=90;if(nf.includes(nq))s+=30;if(nl.includes(nq))s+=28;return s;
+}
+function parseName(full){const m=String(full||'').match(/^\s*([^,]+)\s*,\s*(.+)\s*$/);return m?{first:m[2].trim(),last:m[1].trim()}:{first:String(full||'').trim(),last:''};}
+
+let searchTimer=null;
+qEl.addEventListener('input',()=>{clearTimeout(searchTimer);const q=qEl.value.trim(),box=$('results');if(!q){box.innerHTML='';box.classList.remove('open');return;}searchTimer=setTimeout(()=>doSearch(q),180);});
+qEl.addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchTimer);doSearch(qEl.value.trim());e.preventDefault();}});
+
+function doSearch(q){
+  if(!q)return;const box=$('results'),action=getAction();
+  if(!rosterReady){box.innerHTML='<div style="color:#bbb;font-size:13px;padding:10px;text-align:center">Roster unavailable</div>';box.classList.add('open');return;}
+  const fac=facultyList.map(f=>({...f,_s:nameScore(q,f.firstName||'',f.lastName||'')})).filter(f=>f._s>0).sort((a,b)=>b._s-a._s).slice(0,20);
+  const stu=studentList.map(s=>{const p=parseName(s.fullName||`${s.lastName||''},${s.firstName||''}`);return{...s,_first:p.first,_last:p.last,_s:nameScore(q,p.first,p.last)};}).filter(s=>s._s>0).sort((a,b)=>b._s-a._s).slice(0,20);
+  if(!fac.length&&!stu.length){box.innerHTML='<div style="color:#bbb;font-size:13px;padding:10px;text-align:center">No matches</div>';box.classList.add('open');return;}
+  const frag=document.createDocumentFragment();
+  if(stu.length){
+    const h=document.createElement('div');h.className='res-section';h.textContent='Students';frag.appendChild(h);
+    stu.forEach(({fullName,legacyId,personId,_first,_last,grade})=>{
+      const name=`${_first} ${_last}`.trim()||fullName||'',legacy=legacyId||personId||'';
+      frag.appendChild(makeRow(name,grade||'',()=>{
+        if(!legacy){Toast.show('No legacy ID','err');return;}
+        if(!dedupe(dKey(legacy,action))){Toast.show('Duplicate (5s)','warn',1200);return;}
+        processScan({pin:legacy,personId:personId||legacy,legacyId:legacy,firstName:_first,lastName:_last,grade:grade||'',kind:'student',action,src:action==='in'?'search_student_in':'search_student_out'});clearSearch();
+      }));
+    });
+  }
+  if(fac.length){
+    const h=document.createElement('div');h.className='res-section';h.textContent='Faculty';frag.appendChild(h);
+    fac.forEach(({firstName,lastName,personId,pin})=>{
+      const name=`${firstName||''} ${lastName||''}`.trim();
+      frag.appendChild(makeRow(name,'',()=>{
+        const id=personId||pin||name;if(!dedupe(dKey(id,action))){Toast.show('Duplicate (5s)','warn',1200);return;}
+        let p=pin||'';if(!p&&personId){for(const[k,v]of facultyByPin){if(v.personId===personId){p=k;break;}}}
+        processScan({pin:p,personId:personId||'',legacyId:'',firstName:firstName||'',lastName:lastName||'',grade:'',kind:'faculty',action,src:'search_faculty'});clearSearch();
+      }));
+    });
+  }
+  box.replaceChildren(frag);box.classList.add('open');
+}
+
+function makeRow(name,grade,onClick){
+  const row=document.createElement('div');row.className='res-row';
+  const info=document.createElement('div');info.style.cssText='min-width:0;flex:1';
+  const n=document.createElement('div');n.className='res-name';n.textContent=name;info.appendChild(n);
+  if(grade){const g=document.createElement('div');g.className='res-grade';g.textContent=`Grade ${String(grade).replace(/^grade\s+/i,'')}`;info.appendChild(g);}
+  const btn=document.createElement('button');btn.className='res-btn';btn.textContent='Submit';
+  btn.addEventListener('click',()=>{onClick();btn.blur();});
+  row.appendChild(info);row.appendChild(btn);return row;
+}
+function clearSearch(){qEl.value='';const b=$('results');b.innerHTML='';b.classList.remove('open');focusPin();}
+
+/* ════════════════════════════════════════════════════════════════
+   ROSTER — hardcoded ENDPOINT (not window.location)
+════════════════════════════════════════════════════════════════ */
+async function loadRoster(overlay=true){
+  clearTimeout(rosterRetryTimer);
+  if(overlay){bootEl.style.display='flex';bootText.textContent='Loading roster…';}
+  rosterChip.textContent='Roster ⏳';rosterChip.className='chip chip-blue btn';
+  try{
+    const res=await fetchT(ENDPOINT+'?action=bootstrap');
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(data.error)throw new Error(data.error);
+    studentByLegacy=new Map(Object.entries(data.studentByLegacy||{}));
+    facultyByPin=new Map(Object.entries(data.facultyPins||{}));
+    facultyList=Array.isArray(data.facultyList)?data.facultyList:[];
+    studentList=Array.isArray(data.studentList)?data.studentList:[];
+    rosterReady=true;
+    const cnt=facultyList.length+studentList.length;
+    rosterChip.textContent=`Roster ✓ ${cnt}`;rosterChip.className='chip chip-green btn';
+    if(overlay)Toast.show(`Roster loaded — ${cnt} people`,'ok',2000);
+    rosterRetryTimer=setTimeout(()=>loadRoster(false),24*60*60*1000);
+  }catch(e){
+    console.error('Roster load failed:',e);rosterReady=false;
+    rosterChip.textContent='Roster ✗';rosterChip.className='chip chip-red btn';
+    if(overlay)Toast.show('Roster unavailable — swipes still queued','warn',3000);
+    rosterRetryTimer=setTimeout(()=>loadRoster(false),60000);
+  }finally{
+    if(overlay)bootEl.style.display='none';
+    pinEl.disabled=false;qEl.disabled=false;focusPin();
+  }
+}
+rosterChip.addEventListener('click',async()=>{Toast.show('Refreshing…','warn',1500);await loadRoster(false);setTimeout(focusIfIdle,0);});
+
+/* ── Boot ── */
+(async()=>{
+  updateNet();renderLog();updateChips();renderVCPanel();
+  pinEl.disabled=true;qEl.disabled=true;
+  scheduleFlush(800);
+  await loadRoster(true);
+})();
+
+})();
+</script>
+</body>
+</html>
