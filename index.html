@@ -488,66 +488,22 @@ function openVC(legacyId,scanId){
   return true;
 }
 
-function submitVC(legacyId,scanId){
+async function submitVC(legacyId,scanId){
   const name=(()=>{const q=getVCQ();const i=q.find(x=>x.scanId===scanId);return i?i.name:'';})();
-
-  // Use a hidden iframe + form so the POST comes from the laptop's IP (no CORS issue)
-  const iframeId='vc_iframe_'+scanId;
-  const formId='vc_form_'+scanId;
-
-  // Create hidden iframe
-  const iframe=document.createElement('iframe');
-  iframe.name=iframeId;
-  iframe.id=iframeId;
-  iframe.style.cssText='display:none;width:0;height:0;border:0;position:absolute;left:-9999px';
-  document.body.appendChild(iframe);
-
-  // Create hidden form targeting the iframe
-  const form=document.createElement('form');
-  form.id=formId;
-  form.method='POST';
-  form.action='https://checkin.veracross.com/frisch/checkin/log';
-  form.target=iframeId;
-  form.style.cssText='display:none;position:absolute;left:-9999px';
-
-  [['kiosk_type','4'],['check_in_method','3'],['kiosk','34'],['legacy_id',legacyId],['commit','Scan Here']].forEach(function(pair){
-    var inp=document.createElement('input');
-    inp.type='hidden';inp.name=pair[0];inp.value=pair[1];
-    form.appendChild(inp);
-  });
-  document.body.appendChild(form);
-  form.submit();
-
-  // Listen for iframe load to detect success/fail
-  let settled=false;
-  function cleanup(){
-    try{document.body.removeChild(iframe);}catch(_){}
-    try{document.body.removeChild(form);}catch(_){}
-  }
-
-  iframe.addEventListener('load',()=>{
-    if(settled)return;
-    settled=true;
-    try{
-      const html=iframe.contentDocument?.body?.innerHTML?.toLowerCase()||'';
-      const ok=html.includes('successfully')||html.includes('late arrival')||html==='';
-      const fail=html.includes('invalid')||html.includes('not found')||html.includes('forbidden');
-      if(fail){markVCFailed(scanId,name);}
-      else{markVCSent(scanId);}
-    }catch(_){
-      // Cross-origin read blocked = form was accepted and redirected — treat as success
+  try{
+    const url=ENDPOINT+'?action=vcCheckin&apiKey='+encodeURIComponent(API_KEY)+'&legacyId='+encodeURIComponent(legacyId);
+    const res=await fetchT(url);
+    const data=await res.json().catch(()=>({}));
+    if(data.ok){
+      markVCSent(scanId);
+    }else if(data.fail||data.error){
+      markVCFailed(scanId,name);
+    }else{
       markVCSent(scanId);
     }
-    cleanup();
-  });
-
-  // Timeout fallback — if no load event after 8s, assume success
-  setTimeout(()=>{
-    if(settled)return;
-    settled=true;
-    markVCSent(scanId);
-    cleanup();
-  },8000);
+  }catch(err){
+    console.warn('VC submit failed:',err.message);
+  }
 }
 
 async function sendAllVC(){
