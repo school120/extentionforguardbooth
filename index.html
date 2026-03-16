@@ -488,26 +488,43 @@ function openVC(legacyId,scanId){
   return true;
 }
 
-async function submitVC(legacyId,scanId){
-  const name=(()=>{const q=getVCQ();const i=q.find(x=>x.scanId===scanId);return i?i.name:'';})();
-  try{
-    const url=ENDPOINT+'?action=vcCheckin&apiKey='+encodeURIComponent(API_KEY)+'&legacyId='+encodeURIComponent(legacyId);
-    const res=await fetchT(url);
-    const data=await res.json().catch(()=>({}));
-    // Debug — show response so we can see what's happening
-    Toast.show('VC debug: ok='+data.ok+' fail='+data.fail+' status='+data.status+' err='+(data.error||'')+(data.debug?' | '+data.debug.substring(0,60):''),'warn',8000);
-    console.log('VC response:', JSON.stringify(data));
-    if(data.ok){
-      markVCSent(scanId);
-    }else if(data.fail||data.error){
-      markVCFailed(scanId,name);
-    }else{
-      markVCSent(scanId);
-    }
-  }catch(err){
-    Toast.show('VC exception: '+err.message,'err',6000);
-    console.warn('VC submit failed:',err.message);
+function submitVC(legacyId,scanId){
+  const VC_URL='https://checkin.veracross.com/frisch/kiosk/entrance?legacy='+encodeURIComponent(legacyId);
+  const win=window.open(VC_URL,'vc_checkin','width=500,height=700,noopener=no');
+  
+  // Wait for extension to handle it and close the window
+  let settled=false;
+  
+  // Listen for postMessage from extension
+  function onMsg(e){
+    if(e.origin!=='https://checkin.veracross.com')return;
+    if(!e.data||e.data.scanId!==scanId)return;
+    settled=true;
+    window.removeEventListener('message',onMsg);
+    clearInterval(pollTimer);
+    if(e.data.result==='ok'){markVCSent(scanId);}
+    else{markVCFailed(scanId,legacyId);}
   }
+  window.addEventListener('message',onMsg);
+  
+  // Poll for window close as fallback
+  const pollTimer=setInterval(()=>{
+    if(!win||win.closed){
+      clearInterval(pollTimer);
+      window.removeEventListener('message',onMsg);
+      if(!settled){settled=true;markVCSent(scanId);}
+    }
+  },500);
+  
+  // Hard timeout — 15s
+  setTimeout(()=>{
+    if(settled)return;
+    settled=true;
+    clearInterval(pollTimer);
+    window.removeEventListener('message',onMsg);
+    try{win&&win.close();}catch(_){}
+    markVCSent(scanId);
+  },15000);
 }
 
 async function sendAllVC(){
