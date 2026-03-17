@@ -489,42 +489,47 @@ function openVC(legacyId,scanId){
 }
 
 function submitVC(legacyId,scanId){
-  const VC_URL='https://checkin.veracross.com/frisch/kiosk/entrance?legacy='+encodeURIComponent(legacyId);
-  const win=window.open(VC_URL,'vc_checkin','width=500,height=700,noopener=no');
-  
-  // Wait for extension to handle it and close the window
+  // Build a self-submitting HTML page that POSTs to Veracross from the laptop's IP
+  const html=[
+    '<!DOCTYPE html><html><head><title>Checking in...</title>',
+    '<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f4f8;}',
+    '.box{text-align:center;padding:32px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}',
+    'h2{margin:0 0 8px;color:#1976d2;}p{color:#666;margin:0;}</style></head>',
+    '<body><div class="box"><h2>⏳ Checking in...</h2><p>Please wait...</p></div>',
+    '<form id="f" method="POST" action="https://checkin.veracross.com/frisch/checkin/log">',
+    '<input type="hidden" name="kiosk_type" value="4">',
+    '<input type="hidden" name="check_in_method" value="3">',
+    '<input type="hidden" name="kiosk" value="34">',
+    '<input type="hidden" name="legacy_id" value="'+legacyId+'">',
+    '<input type="hidden" name="commit" value="Scan Here">',
+    '</form>',
+    '<script>',
+    'document.getElementById("f").submit();',
+    'setTimeout(function(){window.close();},3000);',
+    '<\/script>',
+    '</body></html>'
+  ].join('');
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const win=window.open(url,'vc_'+scanId,'width=400,height=300');
+
   let settled=false;
-  
-  // Listen for postMessage from extension
-  function onMsg(e){
-    if(e.origin!=='https://checkin.veracross.com')return;
-    if(!e.data||e.data.scanId!==scanId)return;
-    settled=true;
-    window.removeEventListener('message',onMsg);
-    clearInterval(pollTimer);
-    if(e.data.result==='ok'){markVCSent(scanId);}
-    else{markVCFailed(scanId,legacyId);}
-  }
-  window.addEventListener('message',onMsg);
-  
-  // Poll for window close as fallback
   const pollTimer=setInterval(()=>{
     if(!win||win.closed){
       clearInterval(pollTimer);
-      window.removeEventListener('message',onMsg);
-      if(!settled){settled=true;markVCSent(scanId);}
+      if(!settled){settled=true;URL.revokeObjectURL(url);markVCSent(scanId);}
     }
   },500);
-  
-  // Hard timeout — 15s
+
   setTimeout(()=>{
     if(settled)return;
     settled=true;
     clearInterval(pollTimer);
-    window.removeEventListener('message',onMsg);
     try{win&&win.close();}catch(_){}
+    URL.revokeObjectURL(url);
     markVCSent(scanId);
-  },15000);
+  },10000);
 }
 
 async function sendAllVC(){
